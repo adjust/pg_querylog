@@ -16,4 +16,4 @@ returns query_item as 'MODULE_PATHNAME'
 language c strict;
 
 create or replace view running_queries as
-	select pid, query, params, start_time from get_queries(true, false);
+	select pid, query, params, start_time, overflow from get_queries(true, false);

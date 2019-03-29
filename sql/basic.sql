@@ -5,7 +5,7 @@ select pid > 0 as true, query, params,
 	end_time, running, overflow
 from backlog.get_queries();
 
-select pid > 0 as true, query, params,
+select pid > 0 as true, query, params, overflow,
 	extract(year from start_time) > 0 as true
 from backlog.running_queries;
 

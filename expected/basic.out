@@ -12,14 +12,14 @@ from backlog.get_queries();
       | from backlog.get_queries();                                               |        |      |          |         | 
 (1 row)
 
-select pid > 0 as true, query, params,
+select pid > 0 as true, query, params, overflow,
 	extract(year from start_time) > 0 as true
 from backlog.running_queries;
- true |                       query                       | params | true 
-------+---------------------------------------------------+--------+------
- t    | select pid > 0 as true, query, params,           +|        | t
-      |         extract(year from start_time) > 0 as true+|        | 
-      | from backlog.running_queries;                     |        | 
+ true |                       query                       | params | overflow | true 
+------+---------------------------------------------------+--------+----------+------
+ t    | select pid > 0 as true, query, params, overflow, +|        | f        | t
+      |         extract(year from start_time) > 0 as true+|        |          | 
+      | from backlog.running_queries;                     |        |          | 
 (1 row)
 
 prepare p1 as select $1 as c1, $2 as c2, pid > 0 as true, query, params,
