@@ -1,1 +1,1 @@
-shared_preload_libraries = 'pg_querylog'
+session_preload_libraries = 'pg_querylog'

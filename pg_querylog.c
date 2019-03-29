@@ -361,6 +361,7 @@ _PG_init(void)
 
 			toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
 			hdr = shm_toc_lookup(toc, 0, false);
+			elog(LOG, "pg_querylog initialized");
 		} else {
 			seg = dsm_create(segsize, DSM_CREATE_NULL_IF_MAXSEGMENTS);
 			if (seg == NULL)
@@ -368,6 +369,7 @@ _PG_init(void)
 				elog(LOG, "pg_querylog: could not create dsm segment");
 				return;
 			}
+			*((dsm_handle *) addr) = dsm_segment_handle(seg);
 			addr = dsm_segment_address(seg);
 			dsm_pin_segment(seg);
 			setup_buffers(segsize, bufsize, addr);
@@ -376,7 +378,6 @@ _PG_init(void)
 		using_dsm = true;
 		shmem_initialized = true;
 		install_hooks(false);
-		elog(LOG, "pg_querylog initialized");
 	}
 }
 
