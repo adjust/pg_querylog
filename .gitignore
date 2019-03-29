@@ -1,0 +1,10 @@
+.deps
+*.so
+*.o
+*.pyc
+/results
+regression.diffs
+regression.out
+*.plist
+Dockerfile
+pg_querylog--*.sql

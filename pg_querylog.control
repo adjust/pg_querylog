@@ -1,0 +1,4 @@
+comment = 'PostgreSQL log queries'
+default_version = '0.1'
+module_pathname = '$libdir/pg_querylog'
+relocatable = true
