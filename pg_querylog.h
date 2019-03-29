@@ -7,8 +7,8 @@
 #error "this extension support only postgres starting from 10"
 #endif
 
-#define	PG_BACKLOG_MAGIC		0xAABBCCEE
-#define	PG_BACKLOG_ITEM_MAGIC	0x06054AB5
+#define	PG_QUERYLOG_MAGIC		0xAABBCCEE
+#define	PG_QUERYLOG_ITEM_MAGIC	0x06054AB5
 
 typedef struct CollectedQuery
 {

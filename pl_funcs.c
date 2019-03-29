@@ -44,7 +44,7 @@ get_queries(PG_FUNCTION_ARGS)
 	funccxt = SRF_PERCALL_SETUP();
 	usercxt = (queries_view_fctx *) funccxt->user_fctx;
 
-	while (usercxt->index < hdr->count)
+	while (hdr && usercxt->index < hdr->count)
 	{
 		uint64			gen;
 		CollectedQuery *item;
@@ -64,7 +64,7 @@ get_queries(PG_FUNCTION_ARGS)
 		if (skip_overflow && item->overflow)
 			continue;
 
-		if (item->magic != PG_BACKLOG_ITEM_MAGIC)
+		if (item->magic != PG_QUERYLOG_ITEM_MAGIC)
 			elog(ERROR, "magic programming error");
 
 		gen = pg_atomic_read_u64(&item->gen);

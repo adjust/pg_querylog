@@ -37,7 +37,9 @@ bool					shmem_initialized = false;
 bool					buffer_increase_suggested = false;
 
 /* local */
-static CollectedQuery	*backend_query = NULL;
+static CollectedQuery  *backend_query = NULL;
+static bool				using_dsm = false;
+static dsm_segment	   *seg = NULL;
 
 static shmem_startup_hook_type	pg_querylog_shmem_hook_next = NULL;
 static ExecutorStart_hook_type	pg_querylog_executor_start_hook_next = NULL;
@@ -134,7 +136,7 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			memset(backend_query, 0, sizeof(CollectedQuery));
 			backend_query->buf = hdr->buffer + (hdr->bufsize * (MyBackendId - 1));
 			memset(backend_query->buf, 0, hdr->bufsize);
-			backend_query->magic = PG_BACKLOG_ITEM_MAGIC;
+			backend_query->magic = PG_QUERYLOG_ITEM_MAGIC;
 			backend_query->pid = MyProcPid;
 			backend_query->running = false;
 		}
@@ -251,7 +253,11 @@ install_hooks(bool shmem)
 static void
 uninstall_hooks(void)
 {
-	shmem_startup_hook	= pg_querylog_shmem_hook;
+	if (!using_dsm)
+		shmem_startup_hook	= pg_querylog_shmem_hook_next;
+
+	ExecutorStart_hook = pg_querylog_executor_start_hook_next;
+	ExecutorEnd_hook = pg_querylog_executor_end_hook_next;
 }
 
 static Size
@@ -274,7 +280,7 @@ calculate_shmem_size(int bufsize)
 static void
 setup_buffers(Size segsize, Size bufsize, void *addr)
 {
-	toc = shm_toc_create(PG_BACKLOG_MAGIC, addr, segsize);
+	toc = shm_toc_create(PG_QUERYLOG_MAGIC, addr, segsize);
 	hdr = shm_toc_allocate(toc, sizeof(BacklogDataHdr));
 	hdr->count = MaxBackends;
 	hdr->queries = shm_toc_allocate(toc, sizeof(CollectedQuery) * hdr->count);
@@ -305,7 +311,7 @@ pg_querylog_shmem_hook(void)
 		setup_buffers(segsize, bufsize, addr);
 	else
 	{
-		toc = shm_toc_attach(PG_BACKLOG_MAGIC, addr);
+		toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
 		hdr = shm_toc_lookup(toc, 0, false);
 	}
 
@@ -339,12 +345,10 @@ _PG_init(void)
 
 		RequestAddinShmemSpace(segsize);
 	} else if (MyProcPort != NULL) {
-		dsm_segment	   *seg;
-
 		// we're going different way, using DSM to store our data
 		// that's not a good way but we know that shared memory has some
 		// space at the end which we can use here
-		addr = ShmemInitStruct("pg_querylog", sizeof(dsm_handle), &found);
+		addr = ShmemInitStruct("pg_querylog dsm", sizeof(dsm_handle), &found);
 		if (found)
 		{
 			seg = dsm_attach(*((dsm_handle *) addr));
@@ -355,7 +359,7 @@ _PG_init(void)
 			}
 			addr = dsm_segment_address(seg);
 
-			toc = shm_toc_attach(PG_BACKLOG_MAGIC, addr);
+			toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
 			hdr = shm_toc_lookup(toc, 0, false);
 		} else {
 			seg = dsm_create(segsize, DSM_CREATE_NULL_IF_MAXSEGMENTS);
@@ -369,8 +373,10 @@ _PG_init(void)
 			setup_buffers(segsize, bufsize, addr);
 		}
 
-		setup_gucs(true);
+		using_dsm = true;
+		shmem_initialized = true;
 		install_hooks(false);
+		elog(LOG, "pg_querylog initialized");
 	}
 }
 
@@ -380,5 +386,10 @@ _PG_init(void)
 void
 _PG_fini(void)
 {
-	uninstall_hooks();
+	if (shmem_initialized)
+	{
+		uninstall_hooks();
+		if (seg)
+			dsm_detach(seg);
+	}
 }
