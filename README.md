@@ -7,6 +7,7 @@ Installation
 ------------
 
 	make && make install
+	echo `session_preload_libraries='pg_querylog'` > postgresql.conf
 	psql postgres -c "create schema querylog; create extension pg_querylog schema querylog;"
 
 Using
@@ -31,6 +32,6 @@ Parameters:
 * `pg_querylog.buffer_size` - buffer size for each saved query, calculated as sum of lenghts of query and its params.
 * `pg_querylog.enabled` - controls saving queries.
 
-To get only running queries `running_queries` is used:
+To get only running queries `running_queries` view is used:
 
 	select * from querylog.running_queries;
