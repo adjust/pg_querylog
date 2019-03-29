@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ildus/pg_querylog.svg?branch=master)](https://travis-ci.org/ildus/pg_querylog)
+
 pg_querylog
 ===========
 
