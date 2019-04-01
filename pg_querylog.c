@@ -357,6 +357,7 @@ _PG_init(void)
 				elog(LOG, "pg_querylog: could not find dsm segment");
 				return;
 			}
+			dsm_pin_mapping(seg);
 			addr = dsm_segment_address(seg);
 
 			toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
@@ -372,6 +373,7 @@ _PG_init(void)
 			*((dsm_handle *) addr) = dsm_segment_handle(seg);
 			addr = dsm_segment_address(seg);
 			dsm_pin_segment(seg);
+			dsm_pin_mapping(seg);
 			setup_buffers(segsize, bufsize, addr);
 		}
 
