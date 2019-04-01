@@ -12,9 +12,10 @@
 
 typedef struct CollectedQuery
 {
+	uint32			magic;		//used to find corruptions
 	pg_atomic_flag	is_free;
 
-	int		magic;				//used to find corruptions
+	uint64	gen;				//used to check consistency
 	int		pid;
 	bool	running;
 	bool	overflow;			//buffer is not enough for this query
@@ -23,6 +24,7 @@ typedef struct CollectedQuery
 	TimestampTz		end;
 
 	int		querylen;
+	int		datalen;
 	char	*buf;				//pointer to start of the buffer
 	char	*params;			//pointer to start of params in the buffer
 } CollectedQuery;

@@ -133,13 +133,14 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 		if (!backend_query && MyBackendId)
 		{
 			backend_query = &hdr->queries[MyBackendId - 1];
-			memset(backend_query, 0, sizeof(CollectedQuery));
+			backend_query->magic = PG_QUERYLOG_ITEM_MAGIC;
+			backend_query->running = false;
+			backend_query->gen = 0;
+			pg_atomic_init_flag(&backend_query->is_free);
 			backend_query->buf = hdr->buffer + (hdr->bufsize * (MyBackendId - 1));
 			memset(backend_query->buf, 0, hdr->bufsize);
-			backend_query->magic = PG_QUERYLOG_ITEM_MAGIC;
 			backend_query->pid = MyProcPid;
-			backend_query->running = false;
-			pg_atomic_init_flag(&backend_query->is_free);
+			pg_write_barrier();
 		}
 
 		if (backend_query)
@@ -147,14 +148,17 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			StringInfoData	data;
 			int				i;
 
+			Assert(backend_query->magic = PG_QUERYLOG_ITEM_MAGIC);
 			initStringInfo(&data);
 
 			// mark is not free
 			while (!pg_atomic_test_set_flag(&backend_query->is_free));
 
+			backend_query->gen++;
 			backend_query->running = true;
 			backend_query->start = GetCurrentTimestamp();
 			backend_query->end = 0;
+			backend_query->overflow = false;
 
 			appendStringInfoString(&data, queryDesc->sourceText);
 			backend_query->querylen = data.len;
@@ -194,10 +198,9 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			else
 				backend_query->params = NULL;
 
+			backend_query->datalen = data.len;
 			if (data.len >= hdr->bufsize)
 			{
-				memcpy(backend_query->buf, data.data, hdr->bufsize);
-				backend_query->buf[hdr->bufsize - 1] = '\0';
 				backend_query->overflow = true;
 
 				if (!buffer_increase_suggested)
@@ -205,10 +208,11 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 					elog(LOG, "pg_querylog: suggested to increase the buffer size");
 					buffer_increase_suggested = true;
 				}
-			} else {
-				memcpy(backend_query->buf, data.data, data.len + 1);
-				backend_query->overflow = false;
 			}
+
+			memcpy(backend_query->buf, data.data, data.len < hdr->bufsize ?
+				data.len + 1 : hdr->bufsize - 1);
+			backend_query->buf[hdr->bufsize - 1] = '\0';
 			resetStringInfo(&data);
 			pg_atomic_clear_flag(&backend_query->is_free);
 		}
@@ -227,6 +231,7 @@ pg_querylog_executor_end_hook(QueryDesc *queryDesc)
 	if (hdr->enabled && backend_query)
 	{
 		while (!pg_atomic_test_set_flag(&backend_query->is_free));
+		backend_query->gen++;
 		backend_query->end = GetCurrentTimestamp();
 		backend_query->running = false;
 		pg_atomic_clear_flag(&backend_query->is_free);
@@ -296,6 +301,7 @@ setup_buffers(Size segsize, Size bufsize, void *addr)
 	shm_toc_insert(toc, 2, hdr->buffer);
 
 	memset(hdr->queries, 0, sizeof(CollectedQuery) * hdr->count);
+	memset(hdr->buffer, 0, bufsize * hdr->count);
 	setup_gucs(false);
 }
 

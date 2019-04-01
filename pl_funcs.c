@@ -46,6 +46,7 @@ get_queries(PG_FUNCTION_ARGS)
 
 	while (hdr && usercxt->index < hdr->count)
 	{
+		uint64			gen;
 		CollectedQuery *item;
 		HeapTuple		htup;
 		Datum			values[natts_queries_view];
@@ -63,6 +64,8 @@ get_queries(PG_FUNCTION_ARGS)
 		if (skip_overflow && item->overflow)
 			continue;
 
+		pg_read_barrier();
+		gen = item->gen;
 		if (!pg_atomic_unlocked_test_flag(&item->is_free))
 			continue;
 
@@ -88,6 +91,10 @@ get_queries(PG_FUNCTION_ARGS)
 			values[att_queries_params] = CStringGetTextDatum(item->params);
 		else
 			isnull[att_queries_params] = true;
+
+		pg_read_barrier();
+		if (gen != item->gen)
+			continue;
 
 		/* form output tuple */
 		htup = heap_form_tuple(funccxt->tuple_desc, values, isnull);
