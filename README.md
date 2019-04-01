@@ -9,7 +9,7 @@ Installation
 ------------
 
 	make && make install
-	echo `session_preload_libraries='pg_querylog'` > postgresql.conf
+	echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
 	psql postgres -c "create schema querylog; create extension pg_querylog schema querylog;"
 
 Using
