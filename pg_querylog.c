@@ -139,6 +139,7 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			backend_query->magic = PG_QUERYLOG_ITEM_MAGIC;
 			backend_query->pid = MyProcPid;
 			backend_query->running = false;
+			pg_atomic_init_flag(&backend_query->is_free);
 		}
 
 		if (backend_query)
@@ -148,7 +149,9 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 
 			initStringInfo(&data);
 
-			pg_atomic_add_fetch_u64(&backend_query->gen, 1);
+			// mark is not free
+			while (!pg_atomic_test_set_flag(&backend_query->is_free));
+
 			backend_query->running = true;
 			backend_query->start = GetCurrentTimestamp();
 			backend_query->end = 0;
@@ -207,7 +210,7 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 				backend_query->overflow = false;
 			}
 			resetStringInfo(&data);
-			pg_atomic_add_fetch_u64(&backend_query->gen, 1);
+			pg_atomic_clear_flag(&backend_query->is_free);
 		}
 	}
 
@@ -223,9 +226,10 @@ pg_querylog_executor_end_hook(QueryDesc *queryDesc)
 {
 	if (hdr->enabled && backend_query)
 	{
+		while (!pg_atomic_test_set_flag(&backend_query->is_free));
 		backend_query->end = GetCurrentTimestamp();
 		backend_query->running = false;
-		pg_atomic_add_fetch_u64(&backend_query->gen, 1);
+		pg_atomic_clear_flag(&backend_query->is_free);
 	}
 
 	if (pg_querylog_executor_end_hook_next)
@@ -345,7 +349,7 @@ _PG_init(void)
 
 		RequestAddinShmemSpace(segsize);
 	} else if (MyProcPort != NULL) {
-		// we're going different way, using DSM to store our data
+		// we're going different way, using DSM to store our data.
 		// that's not a good way but we know that shared memory has some
 		// space at the end which we can use here
 		addr = ShmemInitStruct("pg_querylog dsm", sizeof(dsm_handle), &found);
@@ -362,7 +366,6 @@ _PG_init(void)
 
 			toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
 			hdr = shm_toc_lookup(toc, 0, false);
-			elog(LOG, "pg_querylog initialized");
 		} else {
 			seg = dsm_create(segsize, DSM_CREATE_NULL_IF_MAXSEGMENTS);
 			if (seg == NULL)
@@ -375,6 +378,7 @@ _PG_init(void)
 			dsm_pin_segment(seg);
 			dsm_pin_mapping(seg);
 			setup_buffers(segsize, bufsize, addr);
+			elog(LOG, "pg_querylog initialized");
 		}
 
 		using_dsm = true;

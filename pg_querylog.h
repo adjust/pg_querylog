@@ -12,7 +12,8 @@
 
 typedef struct CollectedQuery
 {
-	pg_atomic_uint64	gen;	//used to check consistency of data
+	pg_atomic_flag	is_free;
+
 	int		magic;				//used to find corruptions
 	int		pid;
 	bool	running;
