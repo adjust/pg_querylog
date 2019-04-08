@@ -34,7 +34,6 @@ int						buffer_size_setting = 0;
 shm_toc				   *toc = NULL;
 BacklogDataHdr		   *hdr = NULL;
 bool					shmem_initialized = false;
-bool					buffer_increase_suggested = false;
 
 /* local */
 static CollectedQuery  *backend_query = NULL;
@@ -158,7 +157,6 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			backend_query->running = true;
 			backend_query->start = GetCurrentTimestamp();
 			backend_query->end = 0;
-			backend_query->overflow = false;
 
 			appendStringInfoString(&data, queryDesc->sourceText);
 			backend_query->querylen = data.len;
@@ -199,19 +197,10 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 				backend_query->params = NULL;
 
 			backend_query->datalen = data.len;
-			if (data.len >= hdr->bufsize)
-			{
-				backend_query->overflow = true;
+			backend_query->overflow = (data.len >= hdr->bufsize);
 
-				if (!buffer_increase_suggested)
-				{
-					elog(LOG, "pg_querylog: suggested to increase the buffer size");
-					buffer_increase_suggested = true;
-				}
-			}
-
-			memcpy(backend_query->buf, data.data, data.len < hdr->bufsize ?
-				data.len + 1 : hdr->bufsize - 1);
+			memcpy(backend_query->buf, data.data, backend_query->overflow ?
+				hdr->bufsize - 1: data.len + 1);
 			backend_query->buf[hdr->bufsize - 1] = '\0';
 			resetStringInfo(&data);
 			pg_atomic_clear_flag(&backend_query->is_free);
@@ -222,7 +211,6 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 		pg_querylog_executor_start_hook_next(queryDesc, eflags);
 	else
 		standard_ExecutorStart(queryDesc, eflags);
-
 }
 
 static void

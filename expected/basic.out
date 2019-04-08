@@ -22,31 +22,68 @@ from backlog.running_queries;
       | from backlog.running_queries;                     |        |          | 
 (1 row)
 
-prepare p1 as select $1 as c1, $2 as c2, pid > 0 as true, query, params,
-	extract(year from start_time) > 0 as true
-from backlog.running_queries;
+prepare p1 as
+	select $1 as c1, $2 as c2, pid > 0 as true, query, params,
+		extract(year from start_time) > 0 as true
+	from backlog.running_queries;
 execute p1(1, 2);
- c1 | c2 | true |                                  query                                   | params  | true 
-----+----+------+--------------------------------------------------------------------------+---------+------
- 1  | 2  | t    | prepare p1 as select $1 as c1, $2 as c2, pid > 0 as true, query, params,+| '1','2' | t
-    |    |      |         extract(year from start_time) > 0 as true                       +|         | 
-    |    |      | from backlog.running_queries;                                            |         | 
+ c1 | c2 | true |                               query                                | params  | true 
+----+----+------+--------------------------------------------------------------------+---------+------
+ 1  | 2  | t    | prepare p1 as                                                     +| '1','2' | t
+    |    |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|         | 
+    |    |      |                 extract(year from start_time) > 0 as true         +|         | 
+    |    |      |         from backlog.running_queries;                              |         | 
 (1 row)
 
 execute p1('{1,2}'::int[], 1);
-  c1   | c2 | true |                                  query                                   |   params    | true 
--------+----+------+--------------------------------------------------------------------------+-------------+------
- {1,2} | 1  | t    | prepare p1 as select $1 as c1, $2 as c2, pid > 0 as true, query, params,+| '{1,2}','1' | t
-       |    |      |         extract(year from start_time) > 0 as true                       +|             | 
-       |    |      | from backlog.running_queries;                                            |             | 
+  c1   | c2 | true |                               query                                |   params    | true 
+-------+----+------+--------------------------------------------------------------------+-------------+------
+ {1,2} | 1  | t    | prepare p1 as                                                     +| '{1,2}','1' | t
+       |    |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|             | 
+       |    |      |                 extract(year from start_time) > 0 as true         +|             | 
+       |    |      |         from backlog.running_queries;                              |             | 
 (1 row)
 
 execute p1('{"one": "two"}'::jsonb, '{"one", "two"}'::text[]);
-       c1       |    c2     | true |                                  query                                   |            params            | true 
-----------------+-----------+------+--------------------------------------------------------------------------+------------------------------+------
- {"one": "two"} | {one,two} | t    | prepare p1 as select $1 as c1, $2 as c2, pid > 0 as true, query, params,+| '{"one": "two"}','{one,two}' | t
-                |           |      |         extract(year from start_time) > 0 as true                       +|                              | 
-                |           |      | from backlog.running_queries;                                            |                              | 
+       c1       |    c2     | true |                               query                                |            params            | true 
+----------------+-----------+------+--------------------------------------------------------------------+------------------------------+------
+ {"one": "two"} | {one,two} | t    | prepare p1 as                                                     +| '{"one": "two"}','{one,two}' | t
+                |           |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|                              | 
+                |           |      |                 extract(year from start_time) > 0 as true         +|                              | 
+                |           |      |         from backlog.running_queries;                              |                              | 
+(1 row)
+
+prepare p2 as
+	select length($1) as plen, length(query) + length(params) as buflen, overflow
+	from backlog.running_queries;
+execute p2(repeat('a', 10000));
+ plen  | buflen | overflow 
+-------+--------+----------
+ 10000 |  10125 | f
+(1 row)
+
+execute p2(repeat('a', 10240));
+ plen  | buflen | overflow 
+-------+--------+----------
+ 10240 |  10239 | t
+(1 row)
+
+execute p2(repeat('a', 10340));
+ plen  | buflen | overflow 
+-------+--------+----------
+ 10340 |  10239 | t
+(1 row)
+
+execute p2(repeat('b', 20000));
+ plen  | buflen | overflow 
+-------+--------+----------
+ 20000 |  10239 | t
+(1 row)
+
+execute p2(repeat('c', 30000));
+ plen  | buflen | overflow 
+-------+--------+----------
+ 30000 |  10239 | t
 (1 row)
 
 drop schema backlog cascade;
