@@ -1,1 +1,2 @@
 session_preload_libraries = 'pg_querylog'
+log_statement=all

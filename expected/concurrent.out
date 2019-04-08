@@ -1,0 +1,29 @@
+Parsed test spec with 3 sessions
+
+starting permutation: s1init q1 q2 getr getq s1end
+step s1init: 
+	begin work;
+	lock table one in access exclusive mode;
+
+step q1: 
+	prepare p1 as select $1, * from one;
+	execute p1(1);
+ <waiting ...>
+step q2: 
+	select 1;
+
+?column?       
+
+1              
+step getr: select query, params from querylog.running_queries;
+query          params         
+
+select query, params from querylog.running_queries;               
+step getq: select query, params from querylog.running_queries;
+query          params         
+
+select query, params from querylog.running_queries;               
+step s1end: commit work;
+step q1: <... completed>
+?column?       a              
+
