@@ -10,10 +10,23 @@ Installation
 
 	make && make install
 	echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
+	echo "pg_querylog.enabled=on" >> postgresql.conf
 	psql postgres -c "create schema querylog; create extension pg_querylog schema querylog;"
 
 Using
 -----
+
+Make sure it's loaded:
+
+	show session_preload_libraries
+
+or
+
+	show shared_preload_libraries
+
+and enabled (by default it is disabled):
+
+	show pg_querylog.enabled
 
 Get all saved queries using `get_queries` function:
 
