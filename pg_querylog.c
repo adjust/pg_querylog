@@ -303,6 +303,7 @@ pg_querylog_shmem_hook(void)
 	bufsize = MAXALIGN(buffer_size_setting * 1024);
 	segsize = calculate_shmem_size(bufsize);
 
+	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 	addr = ShmemInitStruct("pg_querylog", segsize, &found);
 	if (!found)
 	{
@@ -314,6 +315,7 @@ pg_querylog_shmem_hook(void)
 		toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
 		hdr = shm_toc_lookup(toc, 0, false);
 	}
+	LWLockRelease(AddinShmemInitLock);
 
 	shmem_initialized = true;
 
@@ -351,6 +353,8 @@ _PG_init(void)
 		// dsm pointer in shmem.
 		// that's not a good way but we know that shared memory has some
 		// space at the end which we can use here
+		LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+
 		addr = ShmemInitStruct("pg_querylog dsm", sizeof(dsm_handle), &found);
 		if (found)
 		{
@@ -379,6 +383,8 @@ _PG_init(void)
 			setup_buffers(segsize, bufsize, addr);
 			elog(LOG, "pg_querylog initialized");
 		}
+
+		LWLockRelease(AddinShmemInitLock);
 
 		using_dsm = true;
 		shmem_initialized = true;
