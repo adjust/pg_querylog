@@ -3,6 +3,7 @@ setup
 	create schema querylog;
 	create extension pg_querylog schema querylog;
 	create table one(a int);
+	set pg_querylog.enabled = on;
 }
 
 teardown

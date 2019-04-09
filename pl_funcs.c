@@ -44,7 +44,7 @@ get_queries(PG_FUNCTION_ARGS)
 	funccxt = SRF_PERCALL_SETUP();
 	usercxt = (queries_view_fctx *) funccxt->user_fctx;
 
-	while (hdr && usercxt->index < hdr->count)
+	while (hdr)
 	{
 		uint64			gen;
 		CollectedQuery *item;
@@ -53,6 +53,8 @@ get_queries(PG_FUNCTION_ARGS)
 		bool			isnull[natts_queries_view];
 
 		usercxt->index++;
+		if (usercxt->index == hdr->count)
+			break;
 
 		item = (CollectedQuery *) (hdr->queries + usercxt->index);
 		if (item->pid == 0)

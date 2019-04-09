@@ -1,38 +1,59 @@
-create schema backlog;
-create extension pg_querylog schema backlog;
+create schema querylog;
+create extension pg_querylog schema querylog;
+-- disabled by default
+show pg_querylog.enabled;
+ pg_querylog.enabled 
+---------------------
+ off
+(1 row)
+
+select * from querylog.running_queries;
+ pid | query | params | start_time | overflow 
+-----+-------+--------+------------+----------
+     |       |        |            | 
+(1 row)
+
+-- enable
+set pg_querylog.enabled=on;
+show pg_querylog.enabled;
+ pg_querylog.enabled 
+---------------------
+ on
+(1 row)
+
 select pid > 0 as true, query, params,
 	extract(year from start_time) = extract(year from now()) as true,
 	end_time, running, overflow
-from backlog.get_queries();
+from querylog.get_queries();
  true |                                   query                                   | params | true | end_time | running | overflow 
 ------+---------------------------------------------------------------------------+--------+------+----------+---------+----------
  t    | select pid > 0 as true, query, params,                                   +|        | t    |          | t       | f
       |         extract(year from start_time) = extract(year from now()) as true,+|        |      |          |         | 
       |         end_time, running, overflow                                      +|        |      |          |         | 
-      | from backlog.get_queries();                                               |        |      |          |         | 
+      | from querylog.get_queries();                                              |        |      |          |         | 
 (1 row)
 
 select pid > 0 as true, query, params, overflow,
 	extract(year from start_time) > 0 as true
-from backlog.running_queries;
+from querylog.running_queries;
  true |                       query                       | params | overflow | true 
 ------+---------------------------------------------------+--------+----------+------
  t    | select pid > 0 as true, query, params, overflow, +|        | f        | t
       |         extract(year from start_time) > 0 as true+|        |          | 
-      | from backlog.running_queries;                     |        |          | 
+      | from querylog.running_queries;                    |        |          | 
 (1 row)
 
 prepare p1 as
 	select $1 as c1, $2 as c2, pid > 0 as true, query, params,
 		extract(year from start_time) > 0 as true
-	from backlog.running_queries;
+	from querylog.running_queries;
 execute p1(1, 2);
  c1 | c2 | true |                               query                                | params  | true 
 ----+----+------+--------------------------------------------------------------------+---------+------
  1  | 2  | t    | prepare p1 as                                                     +| '1','2' | t
     |    |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|         | 
     |    |      |                 extract(year from start_time) > 0 as true         +|         | 
-    |    |      |         from backlog.running_queries;                              |         | 
+    |    |      |         from querylog.running_queries;                             |         | 
 (1 row)
 
 execute p1('{1,2}'::int[], 1);
@@ -41,7 +62,7 @@ execute p1('{1,2}'::int[], 1);
  {1,2} | 1  | t    | prepare p1 as                                                     +| '{1,2}','1' | t
        |    |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|             | 
        |    |      |                 extract(year from start_time) > 0 as true         +|             | 
-       |    |      |         from backlog.running_queries;                              |             | 
+       |    |      |         from querylog.running_queries;                             |             | 
 (1 row)
 
 execute p1('{"one": "two"}'::jsonb, '{"one", "two"}'::text[]);
@@ -50,16 +71,16 @@ execute p1('{"one": "two"}'::jsonb, '{"one", "two"}'::text[]);
  {"one": "two"} | {one,two} | t    | prepare p1 as                                                     +| '{"one": "two"}','{one,two}' | t
                 |           |      |         select $1 as c1, $2 as c2, pid > 0 as true, query, params,+|                              | 
                 |           |      |                 extract(year from start_time) > 0 as true         +|                              | 
-                |           |      |         from backlog.running_queries;                              |                              | 
+                |           |      |         from querylog.running_queries;                             |                              | 
 (1 row)
 
 prepare p2 as
 	select length($1) as plen, length(query) + length(params) as buflen, overflow
-	from backlog.running_queries;
+	from querylog.running_queries;
 execute p2(repeat('a', 10000));
  plen  | buflen | overflow 
 -------+--------+----------
- 10000 |  10125 | f
+ 10000 |  10126 | f
 (1 row)
 
 execute p2(repeat('a', 10240));
@@ -86,5 +107,5 @@ execute p2(repeat('c', 30000));
  30000 |  10239 | t
 (1 row)
 
-drop schema backlog cascade;
+drop schema querylog cascade;
 NOTICE:  drop cascades to extension pg_querylog

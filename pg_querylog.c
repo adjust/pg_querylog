@@ -71,7 +71,7 @@ setup_gucs(bool basic)
 			"pg_querylog.enabled",
 			"Enable logging queries", NULL,
 			&hdr->enabled,
-			true,
+			false,
 			PGC_SUSET,
 			0, NULL, NULL, NULL
 		);
@@ -290,7 +290,6 @@ setup_buffers(Size segsize, Size bufsize, void *addr)
 
 	memset(hdr->queries, 0, sizeof(CollectedQuery) * hdr->count);
 	memset(hdr->buffer, 0, bufsize * hdr->count);
-	setup_gucs(false);
 }
 
 static void
@@ -306,7 +305,10 @@ pg_querylog_shmem_hook(void)
 
 	addr = ShmemInitStruct("pg_querylog", segsize, &found);
 	if (!found)
+	{
 		setup_buffers(segsize, bufsize, addr);
+		setup_gucs(false);
+	}
 	else
 	{
 		toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
@@ -342,8 +344,11 @@ _PG_init(void)
 		install_hooks(true);
 
 		RequestAddinShmemSpace(segsize);
-	} else if (MyProcPort != NULL) {
-		// we're going different way, using DSM to store our data.
+	}
+	else if (MyProcPort != NULL)
+	{
+		// we're going different way, using DSM to store our data, and saving
+		// dsm pointer in shmem.
 		// that's not a good way but we know that shared memory has some
 		// space at the end which we can use here
 		addr = ShmemInitStruct("pg_querylog dsm", sizeof(dsm_handle), &found);
@@ -378,6 +383,7 @@ _PG_init(void)
 		using_dsm = true;
 		shmem_initialized = true;
 		install_hooks(false);
+		setup_gucs(false);
 	}
 }
 
