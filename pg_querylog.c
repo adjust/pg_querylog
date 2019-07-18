@@ -71,7 +71,7 @@ setup_gucs(bool basic)
 			"pg_querylog.enabled",
 			"Enable logging queries", NULL,
 			&hdr->enabled,
-			false,
+			true,
 			PGC_SUSET,
 			0, NULL, NULL, NULL
 		);
