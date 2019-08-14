@@ -44,19 +44,21 @@ get_queries(PG_FUNCTION_ARGS)
 	funccxt = SRF_PERCALL_SETUP();
 	usercxt = (queries_view_fctx *) funccxt->user_fctx;
 
-	while (hdr)
+	while (pgl_shared_hdr)
 	{
 		uint64			gen;
 		CollectedQuery *item;
 		HeapTuple		htup;
 		Datum			values[natts_queries_view];
 		bool			isnull[natts_queries_view];
+		const char	   *itembuf;
 
 		usercxt->index++;
-		if (usercxt->index == hdr->count)
+		if (usercxt->index == pgl_shared_hdr->count)
 			break;
 
-		item = (CollectedQuery *) (hdr->queries + usercxt->index);
+		item = (CollectedQuery *) (pgl_shared_queries + usercxt->index);
+		itembuf = QUERYBUF(pgl_shared_hdr, usercxt->index);
 		if (item->pid == 0)
 			continue;
 
@@ -87,10 +89,10 @@ get_queries(PG_FUNCTION_ARGS)
 		values[att_queries_running] = BoolGetDatum(item->running);
 		values[att_queries_overflow] = BoolGetDatum(item->overflow);
 		values[att_queries_query] = PointerGetDatum(
-				cstring_to_text_with_len(item->buf, item->querylen));
+			cstring_to_text_with_len(itembuf, item->querylen));
 
-		if (item->params)
-			values[att_queries_params] = CStringGetTextDatum(item->params);
+		if (item->params_offset)
+			values[att_queries_params] = CStringGetTextDatum(itembuf + item->params_offset);
 		else
 			isnull[att_queries_params] = true;
 

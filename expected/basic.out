@@ -1,18 +1,5 @@
 create schema querylog;
 create extension pg_querylog schema querylog;
--- disabled by default
-show pg_querylog.enabled;
- pg_querylog.enabled 
----------------------
- off
-(1 row)
-
-select * from querylog.running_queries;
- pid | query | params | start_time | overflow 
------+-------+--------+------------+----------
-     |       |        |            | 
-(1 row)
-
 -- enable
 set pg_querylog.enabled=on;
 show pg_querylog.enabled;
@@ -75,12 +62,12 @@ execute p1('{"one": "two"}'::jsonb, '{"one", "two"}'::text[]);
 (1 row)
 
 prepare p2 as
-	select length($1) as plen, length(query) + length(params) as buflen, overflow
+	select length($1) as plen, length(query) + length(coalesce(params, '')) as buflen, overflow
 	from querylog.running_queries;
 execute p2(repeat('a', 10000));
  plen  | buflen | overflow 
 -------+--------+----------
- 10000 |  10126 | f
+ 10000 |  10140 | f
 (1 row)
 
 execute p2(repeat('a', 10240));

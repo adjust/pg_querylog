@@ -25,8 +25,9 @@ typedef struct CollectedQuery
 
 	int		querylen;
 	int		datalen;
-	char	*buf;				//pointer to start of the buffer
-	char	*params;			//pointer to start of params in the buffer
+
+	/* these parameters are valid in specific backend */
+	size_t	params_offset;
 } CollectedQuery;
 
 typedef struct BacklogDataHdr
@@ -34,11 +35,7 @@ typedef struct BacklogDataHdr
 	int				count;		/* basicly equal to MaxConnections */
 	bool			enabled;
 	Size			bufsize;
-	CollectedQuery	*queries;
-	char			*buffer;	/* the whole buffer */
 } BacklogDataHdr;
-
-extern BacklogDataHdr	*hdr;
 
 // view attributes, get_backend_queries
 enum {
@@ -51,5 +48,11 @@ enum {
 	att_queries_overflow,
 	natts_queries_view
 };
+
+extern BacklogDataHdr *pgl_shared_hdr;
+extern CollectedQuery *pgl_shared_queries;
+extern char *pgl_shared_buffer;
+
+#define QUERYBUF(hdr, idx) (pgl_shared_buffer + (hdr->bufsize * (idx)))
 
 #endif

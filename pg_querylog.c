@@ -30,10 +30,12 @@ void		_PG_init(void);
 void		_PG_fini(void);
 
 /* global variables */
-int						buffer_size_setting = 0;
-shm_toc				   *toc = NULL;
-BacklogDataHdr		   *hdr = NULL;
-bool					shmem_initialized = false;
+static int				buffer_size_setting = 0;
+static shm_toc		   *toc = NULL;
+BacklogDataHdr		   *pgl_shared_hdr = NULL;
+CollectedQuery		   *pgl_shared_queries = NULL;
+char				   *pgl_shared_buffer = NULL;		/* the whole buffer */
+static bool				shmem_initialized = false;
 
 /* local */
 static CollectedQuery  *backend_query = NULL;
@@ -70,7 +72,7 @@ setup_gucs(bool basic)
 		DefineCustomBoolVariable(
 			"pg_querylog.enabled",
 			"Enable logging queries", NULL,
-			&hdr->enabled,
+			&pgl_shared_hdr->enabled,
 			true,
 			PGC_SUSET,
 			0, NULL, NULL, NULL
@@ -127,18 +129,21 @@ print_literal(StringInfo s, Oid typid, char *outputstr)
 static void
 pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 {
-	if (hdr->enabled)
+	if (pgl_shared_hdr && pgl_shared_hdr->enabled)
 	{
+		char		   *itembuf;
+
 		if (!backend_query && MyBackendId)
 		{
-			backend_query = &hdr->queries[MyBackendId - 1];
+			backend_query = &pgl_shared_queries[MyBackendId - 1];
 			backend_query->magic = PG_QUERYLOG_ITEM_MAGIC;
 			backend_query->running = false;
 			backend_query->gen = 0;
 			pg_atomic_init_flag(&backend_query->is_free);
-			backend_query->buf = hdr->buffer + (hdr->bufsize * (MyBackendId - 1));
-			memset(backend_query->buf, 0, hdr->bufsize);
 			backend_query->pid = MyProcPid;
+
+			itembuf = QUERYBUF(pgl_shared_hdr, MyBackendId - 1);
+			memset(itembuf, 0, pgl_shared_hdr->bufsize);
 			pg_write_barrier();
 		}
 
@@ -160,11 +165,12 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 
 			appendStringInfoString(&data, queryDesc->sourceText);
 			backend_query->querylen = data.len;
+			itembuf = QUERYBUF(pgl_shared_hdr, MyBackendId - 1);
 
 			// collect params
-			if (queryDesc->params && data.len < hdr->bufsize)
+			if (queryDesc->params && data.len < pgl_shared_hdr->bufsize)
 			{
-				backend_query->params = backend_query->buf + data.len;
+				backend_query->params_offset = data.len;
 
 				for (i = 0; i < queryDesc->params->numParams; i++)
 				{
@@ -194,14 +200,14 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 				}
 			}
 			else
-				backend_query->params = NULL;
+				backend_query->params_offset = 0;
 
 			backend_query->datalen = data.len;
-			backend_query->overflow = (data.len >= hdr->bufsize);
+			backend_query->overflow = (data.len >= pgl_shared_hdr->bufsize);
 
-			memcpy(backend_query->buf, data.data, backend_query->overflow ?
-				hdr->bufsize - 1: data.len + 1);
-			backend_query->buf[hdr->bufsize - 1] = '\0';
+			memcpy(itembuf, data.data, backend_query->overflow ?
+				pgl_shared_hdr->bufsize - 1: data.len + 1);
+			itembuf[pgl_shared_hdr->bufsize - 1] = '\0';
 			resetStringInfo(&data);
 			pg_atomic_clear_flag(&backend_query->is_free);
 		}
@@ -216,7 +222,7 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 static void
 pg_querylog_executor_end_hook(QueryDesc *queryDesc)
 {
-	if (hdr->enabled && backend_query)
+	if (pgl_shared_hdr->enabled && backend_query)
 	{
 		while (!pg_atomic_test_set_flag(&backend_query->is_free));
 		backend_query->gen++;
@@ -278,18 +284,19 @@ static void
 setup_buffers(Size segsize, Size bufsize, void *addr)
 {
 	toc = shm_toc_create(PG_QUERYLOG_MAGIC, addr, segsize);
-	hdr = shm_toc_allocate(toc, sizeof(BacklogDataHdr));
-	hdr->count = MaxBackends;
-	hdr->queries = shm_toc_allocate(toc, sizeof(CollectedQuery) * hdr->count);
-	hdr->buffer = shm_toc_allocate(toc, bufsize * hdr->count);
-	hdr->bufsize = bufsize;
+	pgl_shared_hdr = shm_toc_allocate(toc, sizeof(BacklogDataHdr));
+	pgl_shared_hdr->count = MaxBackends;
+	pgl_shared_hdr->bufsize = bufsize;
 
-	shm_toc_insert(toc, 0, hdr);
-	shm_toc_insert(toc, 1, hdr->queries);
-	shm_toc_insert(toc, 2, hdr->buffer);
+	pgl_shared_queries = shm_toc_allocate(toc, sizeof(CollectedQuery) * pgl_shared_hdr->count);
+	pgl_shared_buffer = shm_toc_allocate(toc, bufsize * pgl_shared_hdr->count);
 
-	memset(hdr->queries, 0, sizeof(CollectedQuery) * hdr->count);
-	memset(hdr->buffer, 0, bufsize * hdr->count);
+	shm_toc_insert(toc, 0, pgl_shared_hdr);
+	shm_toc_insert(toc, 1, pgl_shared_queries);
+	shm_toc_insert(toc, 2, pgl_shared_buffer);
+
+	memset(pgl_shared_queries, 0, sizeof(CollectedQuery) * pgl_shared_hdr->count);
+	memset(pgl_shared_buffer, 0, bufsize * pgl_shared_hdr->count);
 }
 
 static void
@@ -313,7 +320,9 @@ pg_querylog_shmem_hook(void)
 	else
 	{
 		toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
-		hdr = shm_toc_lookup(toc, 0, false);
+		pgl_shared_hdr = shm_toc_lookup(toc, 0, false);
+		pgl_shared_queries = shm_toc_lookup(toc, 1, false);
+		pgl_shared_buffer = shm_toc_lookup(toc, 2, false);
 	}
 	LWLockRelease(AddinShmemInitLock);
 
@@ -368,7 +377,9 @@ _PG_init(void)
 			addr = dsm_segment_address(seg);
 
 			toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
-			hdr = shm_toc_lookup(toc, 0, false);
+			pgl_shared_hdr = shm_toc_lookup(toc, 0, false);
+			pgl_shared_queries = shm_toc_lookup(toc, 1, false);
+			pgl_shared_buffer = shm_toc_lookup(toc, 2, false);
 		} else {
 			seg = dsm_create(segsize, DSM_CREATE_NULL_IF_MAXSEGMENTS);
 			if (seg == NULL)
