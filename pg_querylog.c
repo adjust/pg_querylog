@@ -50,6 +50,14 @@ static void	pg_querylog_shmem_hook(void);
 
 #define safe_strlen(s) ((s) ? strlen(s) : 0)
 
+/* handles error cases */
+static void
+xact_finish_callback(XactEvent event, void *arg)
+{
+	if (backend_query && backend_query->running)
+		backend_query->running = false;
+}
+
 static void
 setup_gucs(bool basic)
 {
@@ -402,6 +410,8 @@ _PG_init(void)
 		install_hooks(false);
 		setup_gucs(false);
 	}
+
+	RegisterXactCallback(xact_finish_callback, NULL);
 }
 
 /*
