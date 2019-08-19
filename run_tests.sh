@@ -46,8 +46,8 @@ if [ $status -ne 0 ]; then exit 1; fi
 # run python tests
 export VIRTUAL_ENV_DISABLE_PROMPT=1
 set +x
-virtualenv /tmp/env && source /tmp/env/bin/activate && pip install testgres pytest
-pytest || status=$?
+virtualenv /tmp/env && source /tmp/env/bin/activate && pip install testgres pytest pytest-xdist
+pytest -n 2 || status=$?
 deactivate
 set -x
 

@@ -21,10 +21,10 @@ def make_queries(node, alive):
             pool.apply_async(all_queries, (node, ))
 
 
-def test_session_preload():
+def run(**options):
     with testgres.get_new_node("master") as node:
         node.init()
-        node.append_conf(session_preload_libraries='pg_querylog')
+        node.append_conf(**options)
         node.start()
         node.psql("create extension pg_querylog")
         node.pgbench_run(initialize=True, scale=2)
@@ -37,3 +37,11 @@ def test_session_preload():
         node.pgbench_run(time=30, client=multiprocessing.cpu_count(), connect=True)
         alive.value = 0
         reader.join()
+
+
+def test_session_preload():
+    run(session_preload_libraries='pg_querylog')
+
+
+def test_shared_preload():
+    run(shared_preload_libraries='pg_querylog')
