@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/ildus/pg_querylog.svg?branch=master)](https://travis-ci.org/ildus/pg_querylog)
+[![Build Status](https://travis-ci.org/adjust/pg_querylog.svg?branch=master)](https://travis-ci.org/adjust/pg_querylog)
 
 pg_querylog
 ===========
@@ -9,9 +9,13 @@ Installation
 ------------
 
 	make && make install
-	echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
-	echo "pg_querylog.enabled=on" >> postgresql.conf
+	echo "shared_preload_libraries='pg_querylog'" >> postgresql.conf
 	psql postgres -c "create schema querylog; create extension pg_querylog schema querylog;"
+	
+Also you can use `session_preload_libraries`, but then `enabled` option should be always `on` since each starting
+backend will rewrite the value.
+
+        echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
 
 Using
 -----
@@ -47,6 +51,6 @@ Parameters:
 * `pg_querylog.buffer_size` - buffer size for each saved query, calculated as sum of lenghts of query and its params.
 * `pg_querylog.enabled` - controls saving queries.
 
-To get only running queries `running_queries` view is used:
+For only running queries `running_queries` use this view:
 
 	select * from querylog.running_queries;
