@@ -6,6 +6,5 @@
 regression.diffs
 regression.out
 *.plist
-Dockerfile
 pg_querylog--*.sql
 /output_iso
