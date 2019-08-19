@@ -15,7 +15,7 @@ Installation
 Also you can use `session_preload_libraries`, but then `enabled` option should be always `on` since each starting
 backend will rewrite the value.
 
-        echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
+	echo "session_preload_libraries='pg_querylog'" >> postgresql.conf
 
 Using
 -----
