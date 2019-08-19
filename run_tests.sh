@@ -6,14 +6,14 @@ echo CHECK_CODE=$CHECK_CODE
 
 status=0
 
+# don't forget to "make clean"
+make USE_PGXS=1 clean
+
 # perform code analysis if necessary
 if [ "$CHECK_CODE" = "clang" ]; then
     scan-build --status-bugs make USE_PGXS=1 || status=$?
     exit $status
 fi
-
-# don't forget to "make clean"
-make USE_PGXS=1 clean
 
 # initialize database
 initdb

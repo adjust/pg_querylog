@@ -1,8 +1,6 @@
 ARG PG_VERSION
 FROM postgres:${PG_VERSION}-alpine
 
-ENV LANG=C.UTF-8 PGDATA=/pg/data
-
 ARG CHECK_CODE
 RUN if [ "${CHECK_CODE}" = "clang" ] ; then \
 	echo 'http://dl-3.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories; \
@@ -13,6 +11,8 @@ RUN if [ "${CHECK_CODE}" = "false" ] ; then \
 	echo 'http://dl-3.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories; \
 	apk --no-cache add curl linux-headers python3 python3-dev py3-virtualenv gcc make musl-dev openssl-dev;\
 	fi
+
+ENV LANG=C.UTF-8 PGDATA=/pg/data CHECK_CODE=${CHECK_CODE}
 
 RUN mkdir -p ${PGDATA} && \
 	mkdir /pg/src && \
