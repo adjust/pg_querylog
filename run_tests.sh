@@ -40,4 +40,15 @@ PGPORT=55435 make USE_PGXS=1 installcheck || status=$?
 # show diff if it exists
 if test -f regression.diffs; then cat regression.diffs; fi
 
+# something's wrong, exit now!
+if [ $status -ne 0 ]; then exit 1; fi
+
+# run python tests
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+set +x
+virtualenv /tmp/env && source /tmp/env/bin/activate && pip install testgres pytest
+pytest || status=$?
+deactivate
+set -x
+
 exit $status
