@@ -3,12 +3,13 @@ FROM postgres:${PG_VERSION}-alpine
 
 ARG CHECK_CODE
 RUN if [ "${CHECK_CODE}" = "clang" ] ; then \
-	echo 'http://dl-3.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories; \
+	echo 'http://dl-cdn.alpinelinux.org/alpine/latest-stable/main' > /etc/apk/repositories; \
+	apk update && \
 	apk --no-cache add clang-analyzer make musl-dev gcc openssl-dev; \
 	fi
 
 RUN if [ "${CHECK_CODE}" = "false" ] ; then \
-	echo 'http://dl-3.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories; \
+	echo 'http://dl-cdn.alpinelinux.org/alpine/latest-stable/main' > /etc/apk/repositories; \
 	apk --no-cache add curl linux-headers python3 python3-dev py3-virtualenv gcc make musl-dev openssl-dev;\
 	fi
 
