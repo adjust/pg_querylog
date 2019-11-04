@@ -163,8 +163,11 @@ pg_querylog_executor_start_hook(QueryDesc *queryDesc, int eflags)
 			Assert(backend_query->magic = PG_QUERYLOG_ITEM_MAGIC);
 			initStringInfo(&data);
 
-			// mark is not free
-			while (!pg_atomic_test_set_flag(&backend_query->is_free));
+			// mark is not free,
+			// we don't check for result here, since there could some
+			// error before clearing flag, and we don't want to depend
+			// on that.
+			pg_atomic_test_set_flag(&backend_query->is_free);
 
 			backend_query->gen++;
 			backend_query->running = true;
@@ -232,7 +235,7 @@ pg_querylog_executor_end_hook(QueryDesc *queryDesc)
 {
 	if (pgl_shared_hdr->enabled && backend_query)
 	{
-		while (!pg_atomic_test_set_flag(&backend_query->is_free));
+		pg_atomic_test_set_flag(&backend_query->is_free);
 		backend_query->gen++;
 		backend_query->end = GetCurrentTimestamp();
 		backend_query->running = false;

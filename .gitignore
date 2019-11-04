@@ -8,3 +8,5 @@ regression.out
 *.plist
 pg_querylog--*.sql
 /output_iso
+.clangd
+compile_commands.json
