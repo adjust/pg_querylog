@@ -33,4 +33,10 @@ execute p2(repeat('a', 10340));
 execute p2(repeat('b', 20000));
 execute p2(repeat('c', 30000));
 
+\pset format wrapped
+\x on
+select pid > 0 as true, query, params, overflow,
+	extract(year from start_time) > 0 as true
+from querylog.running_queries;
+
 drop schema querylog cascade;

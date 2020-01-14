@@ -94,5 +94,19 @@ execute p2(repeat('c', 30000));
  30000 |  10239 | t
 (1 row)
 
+\pset format wrapped
+\x on
+select pid > 0 as true, query, params, overflow,
+	extract(year from start_time) > 0 as true
+from querylog.running_queries;
+-[ RECORD 1 ]-----------------------------------------------
+true     | t
+query    | select pid > 0 as true, query, params, overflow, +
+         |         extract(year from start_time) > 0 as true+
+         | from querylog.running_queries;
+params   | 
+overflow | f
+true     | t
+
 drop schema querylog cascade;
 NOTICE:  drop cascades to extension pg_querylog

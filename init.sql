@@ -1,3 +1,4 @@
+/* don't change order of fields, it will break `get_queries` function */
 create type query_item as (
 	pid			int,
 	query		text,
@@ -16,4 +17,4 @@ returns query_item as 'MODULE_PATHNAME'
 language c strict;
 
 create or replace view running_queries as
-	select pid, query, params, start_time, overflow from get_queries(true, false);
+	select pid, params, start_time, overflow, regexp_replace(query, '\s*\n', E'\n', 'g') as query from get_queries(true, false);
