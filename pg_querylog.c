@@ -42,11 +42,8 @@ static CollectedQuery  *backend_query = NULL;
 static bool				using_dsm = false;
 static dsm_segment	   *seg = NULL;
 
-static shmem_startup_hook_type	pg_querylog_shmem_hook_next = NULL;
 static ExecutorStart_hook_type	pg_querylog_executor_start_hook_next = NULL;
 static ExecutorEnd_hook_type	pg_querylog_executor_end_hook_next = NULL;
-
-static void	pg_querylog_shmem_hook(void);
 
 #define safe_strlen(s) ((s) ? strlen(s) : 0)
 
@@ -249,14 +246,8 @@ pg_querylog_executor_end_hook(QueryDesc *queryDesc)
 }
 
 static void
-install_hooks(bool shmem)
+install_hooks()
 {
-	if (shmem)
-	{
-		pg_querylog_shmem_hook_next	= shmem_startup_hook;
-		shmem_startup_hook			= pg_querylog_shmem_hook;
-	}
-
 	pg_querylog_executor_start_hook_next = ExecutorStart_hook;
 	ExecutorStart_hook = pg_querylog_executor_start_hook;
 
@@ -267,9 +258,6 @@ install_hooks(bool shmem)
 static void
 uninstall_hooks(void)
 {
-	if (!using_dsm)
-		shmem_startup_hook	= pg_querylog_shmem_hook_next;
-
 	ExecutorStart_hook = pg_querylog_executor_start_hook_next;
 	ExecutorEnd_hook = pg_querylog_executor_end_hook_next;
 }
@@ -310,41 +298,6 @@ setup_buffers(Size segsize, Size bufsize, void *addr)
 	memset(pgl_shared_buffer, 0, bufsize * pgl_shared_hdr->count);
 }
 
-static void
-pg_querylog_shmem_hook(void)
-{
-	bool	found;
-	void   *addr;
-	Size	bufsize,
-			segsize;
-
-	bufsize = MAXALIGN(buffer_size_setting * 1024);
-	segsize = calculate_shmem_size(bufsize);
-
-	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
-	addr = ShmemInitStruct("pg_querylog", segsize, &found);
-	if (!found)
-	{
-		setup_buffers(segsize, bufsize, addr);
-		setup_gucs(false);
-	}
-	else
-	{
-		toc = shm_toc_attach(PG_QUERYLOG_MAGIC, addr);
-		pgl_shared_hdr = shm_toc_lookup(toc, 0, false);
-		pgl_shared_queries = shm_toc_lookup(toc, 1, false);
-		pgl_shared_buffer = shm_toc_lookup(toc, 2, false);
-	}
-	LWLockRelease(AddinShmemInitLock);
-
-	shmem_initialized = true;
-
-	elog(LOG, "pg_querylog initialized");
-
-	if (pg_querylog_shmem_hook_next)
-		pg_querylog_shmem_hook_next();
-}
-
 /*
  * Module load callback
  */
@@ -360,14 +313,7 @@ _PG_init(void)
 	bufsize = MAXALIGN(buffer_size_setting * 1024);
 	segsize = calculate_shmem_size(bufsize);
 
-	if (process_shared_preload_libraries_in_progress)
-	{
-		// we can use shared memory
-		install_hooks(true);
-
-		RequestAddinShmemSpace(segsize);
-	}
-	else if (MyProcPort != NULL)
+	if (MyProcPort != NULL)
 	{
 		// we're going different way, using DSM to store our data, and saving
 		// dsm pointer in shmem.

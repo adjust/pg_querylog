@@ -41,7 +41,3 @@ def run(**options):
 
 def test_session_preload():
     run(session_preload_libraries='pg_querylog')
-
-
-def test_shared_preload():
-    run(shared_preload_libraries='pg_querylog')
