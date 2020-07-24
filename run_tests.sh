@@ -25,7 +25,7 @@ make USE_PGXS=1 install
 status=$?
 if [ $status -ne 0 ]; then exit $status; fi
 
-echo "shared_preload_libraries = 'pg_querylog'" >> $PGDATA/postgresql.conf
+echo "session_preload_libraries = 'pg_querylog'" >> $PGDATA/postgresql.conf
 echo "port = 55435" >> $PGDATA/postgresql.conf
 pg_ctl start -l /tmp/postgres.log -w
 
