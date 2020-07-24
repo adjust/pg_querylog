@@ -24,10 +24,6 @@ Make sure it's loaded:
 
 	show session_preload_libraries
 
-or
-
-	show shared_preload_libraries
-
 and enabled (by default it is disabled):
 
 	show pg_querylog.enabled
